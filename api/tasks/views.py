@@ -3,12 +3,11 @@
 import os
 from typing import TYPE_CHECKING
 
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .grok_service import GrokChatService
 from .models import Task
 from .serializers import TaskReportRequestSerializer, TaskSerializer
 
@@ -129,90 +128,19 @@ class TaskReportAPIView(APIView):
         language: str,
         priority_task: dict[str, object] | None,
     ) -> str:
-        """Build a report with Grok, or return a deterministic fallback if no API key exists."""
-        grok_api_key = os.getenv("GROK_API_KEY")
-        grok_model = os.getenv("GROK_MODEL", "grok-beta")
-
-        if not grok_api_key:
-            return self._build_fallback_report(
-                tasks_payload=tasks_payload,
-                total=total,
-                completed=completed,
-                pending=pending,
-                report_format=report_format,
-                language=language,
-                priority_task=priority_task,
-            )
-
-        prompt = ChatPromptTemplate.from_template(
-            """
-            Eres un asistente de proyectos que escribe un análisis breve y claro de tareas.
-
-            Language: {language}
-            Format: {report_format}
-            Totals: total={total}, completed={completed}, pending={pending}
-            Priority task: {priority_task}
-            Tasks: {tasks_payload}
-
-            Devuelve solo el análisis, en el idioma indicado, y enfócate en una sola tarea prioritaria.
-            Incluye:
-            1) un resumen corto del estado actual,
-            2) por qué esa tarea debe ir primero,
-            3) el siguiente paso recomendado.
-            """
+        """Generate the report through the shared GrokChatService pipeline."""
+        service = GrokChatService(
+            api_key=os.getenv("GROK_API_KEY"),
+            model=os.getenv("GROK_MODEL", "grok-beta"),
         )
-
-        chain = prompt | ChatGroq(model=grok_model, api_key=grok_api_key)
-        response = chain.invoke(
-            {
-                "language": language,
-                "report_format": report_format,
-                "total": total,
-                "completed": completed,
-                "pending": pending,
-                "priority_task": priority_task,
-                "tasks_payload": tasks_payload,
-            }
-        )
-        return response.content
-
-    def _build_fallback_report(
-        self,
-        *,
-        tasks_payload: list[dict[str, object]],
-        total: int,
-        completed: int,
-        pending: int,
-        report_format: str,
-        language: str,
-        priority_task: dict[str, object] | None,
-    ) -> str:
-        fallback_mode = os.getenv("GROK_FALLBACK_MODE", "analysis").strip().lower()
-        priority_title = str(priority_task.get("title", "task")) if priority_task else "no tasks"
-
-        if language.strip().lower().startswith("es"):
-            if fallback_mode == "summary":
-                return (
-                    f"Resumen de respaldo en español. Totales: total={total}, completadas={completed}, "
-                    f"pendientes={pending}. Tarea prioritaria: {priority_title}."
-                )
-
-            return (
-                f"Análisis escrito en español: hay {completed} tarea(s) completada(s) y {pending} pendiente(s) "
-                f"de un total de {total}. La tarea que deberías priorizar es '{priority_title}'. "
-                f"Siguiente paso: trabaja primero en esa tarea."
-            )
-
-        if fallback_mode == "summary":
-            return (
-                f"Fallback summary in {language}. "
-                f"Totals: total={total}, completed={completed}, pending={pending}. "
-                f"Priority task: {priority_title}."
-            )
-
-        return (
-            f"Fallback analysis in {language}: {completed} of {total} tasks are completed, leaving {pending} pending. "
-            f"Prioritize '{priority_title}' next."
+        return service.generate_report(
+            prompt=None,
+            tasks_payload=tasks_payload,
+            total=total,
+            completed=completed,
+            pending=pending,
+            language=language,
+            report_format=report_format,
         )
 
     def _pick_priority_task(self, tasks_payload: list[dict[str, object]]) -> dict[str, object] | None:

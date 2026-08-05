@@ -15,15 +15,12 @@ from .serializers import TaskReportRequestSerializer, TaskSerializer
 class GrokChatServiceTests(SimpleTestCase):
     """Tests for the Grok chat service."""
 
-    @patch("tasks.grok_service.requests.post")
-    def test_generate_report_uses_grok_api(self, mock_post: Mock) -> None:
-        """The service should call Grok API and return the response content."""
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "Reporte generado"}}],
-        }
-        mock_post.return_value = mock_response
+    @patch("tasks.grok_service.GrokChatService._build_chain")
+    def test_generate_report_uses_langchain_pipeline(self, mock_build_chain: Mock) -> None:
+        """The service should invoke a LangChain pipeline and return its content."""
+        mock_chain = Mock()
+        mock_chain.invoke.return_value = Mock(content="Reporte generado")
+        mock_build_chain.return_value = mock_chain
 
         service = GrokChatService(api_key="secret", model="grok-2-latest")
         content = service.generate_report(
@@ -37,7 +34,7 @@ class GrokChatServiceTests(SimpleTestCase):
         )
 
         self.assertEqual(content, "Reporte generado")
-        mock_post.assert_called_once()
+        mock_build_chain.assert_called_once()
 
 
 class TaskSerializerTests(TestCase):
@@ -205,7 +202,7 @@ class TaskReportApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("Urgent fix", response.data["report"])
-        self.assertIn("priorizar", response.data["report"].lower())
+        self.assertIn("prioriza", response.data["report"].lower())
 
     @patch("tasks.views.TaskReportAPIView._build_report", return_value="mocked report")
     @patch.dict("os.environ", {"GROK_API_KEY": "test-key", "GROK_MODEL": "grok-test"}, clear=False)

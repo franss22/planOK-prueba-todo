@@ -21,6 +21,7 @@ dj-migrate = "config.cli:migrate"
 dj-makemigrations = "config.cli:makemigrations"
 dj-runserver = "config.cli:runserver"
 dj-seed = "config.cli:seed_tasks"
+dj-test = "config.cli:test"
 
 
 

@@ -1,81 +1,171 @@
-import os
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from .models import Task
-from .serializers import TaskSerializer
+"""Views for the Task application."""
 
-# Importaciones de LangChain con Groq
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+import os
+from typing import TYPE_CHECKING
+
+from rest_framework import status, viewsets
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .grok_service import GrokChatService
+from .models import Task
+from .serializers import TaskReportRequestSerializer, TaskSerializer
+
+if TYPE_CHECKING:
+    from django.db.models import QuerySet
+    from rest_framework.request import Request
 
 
 class TaskViewSet(viewsets.ModelViewSet):
-    queryset = Task.objects.all().order_by('-created_at')
+    """ViewSet for managing Task instances."""
+
     serializer_class = TaskSerializer
+    queryset = Task.objects.all()
 
-    @action(detail=False, methods=['post'], url_path='generate-ai-tasks')
-    def generate_ai_tasks(self, request):
-        topic = request.data.get('topic', 'Organizar proyecto de desarrollo')
-        api_key = os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY')
+    def get_queryset(self) -> QuerySet[Task]:
+        """Retrieve the queryset of Task instances, optionally filtered by query parameters."""
+        queryset = super().get_queryset()
 
-        generated_tasks = []
+        done = self.request.query_params.get("done")
+        if done is not None:
+            normalized = done.strip().lower()
+            if normalized in {"true", "1", "yes", "on"}:
+                queryset = queryset.filter(done=True)
+            elif normalized in {"false", "0", "no", "off"}:
+                queryset = queryset.filter(done=False)
 
-        # Intento de generación con IA mediante LangChain + ChatGroq
-        if api_key:
-            try:
-                llm = ChatGroq(
-                    temperature=0.7,
-                    model_name="llama-3.1-8b-instant",
-                    groq_api_key=api_key
-                )
+        search = self.request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(title__icontains=search) | queryset.filter(content__icontains=search)
 
-                prompt = ChatPromptTemplate.from_messages([
-                    ("system", "Eres un asistente experto en gestión de proyectos. Genera exactamente 3 tareas breves y concretas para lograr el objetivo indicado. Responde únicamente en formato JSON válido con la estructura: [{{\"title\": \"...\", \"description\": \"...\"}}]"),
-                    ("human", "Objetivo: {topic}")
-                ])
+        return queryset
 
-                chain = prompt | llm | JsonOutputParser()
-                response_data = chain.invoke({"topic": topic})
 
-                if isinstance(response_data, dict) and "tasks" in response_data:
-                    generated_tasks = response_data["tasks"]
-                elif isinstance(response_data, list):
-                    generated_tasks = response_data
+class TaskReportAPIView(APIView):
+    """Endpoint for generating AI task reports."""
 
-            except Exception as e:
-                print(f"Advertencia: Falló la API de IA ({str(e)}). Usando tareas simuladas (Mock).")
+    _PRIORITY_KEYWORDS = (
+        "urgent",
+        "urgente",
+        "critical",
+        "critico",
+        "crítico",
+        "blocker",
+        "bloqueo",
+        "important",
+        "importante",
+        "priority",
+        "prioridad",
+        "fix",
+        "asap",
+    )
 
-        # Fallback / Mock si no hay API Key o si ocurrió un error en la llamada
-        if not generated_tasks:
-            generated_tasks = [
-                {
-                    "title": f"Planificar {topic}",
-                    "description": f"Definir los requerimientos iniciales y alcance para: {topic}."
+    def post(self, request: Request) -> Response:
+        """Validate request parameters and return a task report payload."""
+        serializer = TaskReportRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        report_format = serializer.validated_data["format"]
+        include_completed = serializer.validated_data["include_completed"]
+        language = serializer.validated_data["language"]
+        task_ids = serializer.validated_data.get("task_ids", [])
+
+        all_tasks = Task.objects.all()
+        if task_ids:
+            report_tasks = all_tasks.filter(id__in=task_ids)
+        else:
+            report_tasks = all_tasks if include_completed else all_tasks.filter(done=False)
+
+        total = all_tasks.count()
+        completed = all_tasks.filter(done=True).count()
+        pending = all_tasks.filter(done=False).count()
+
+        tasks_payload = [
+            {
+                "id": task.id,
+                "title": task.title,
+                "content": task.content,
+                "done": task.done,
+                "created_at": task.created_at.isoformat(),
+            }
+            for task in report_tasks
+        ]
+
+        priority_task = self._pick_priority_task(tasks_payload)
+
+        report_text = self._build_report(
+            tasks_payload=tasks_payload,
+            total=total,
+            completed=completed,
+            pending=pending,
+            report_format=report_format,
+            language=language,
+            priority_task=priority_task,
+        )
+
+        return Response(
+            {
+                "generated_at": Task.objects.first().created_at.isoformat() if total else None,
+                "model": os.getenv("GROK_MODEL", "grok"),
+                "report": report_text,
+                "stats": {
+                    "total": total,
+                    "completed": completed,
+                    "pending": pending,
                 },
-                {
-                    "title": f"Diseñar estructura para {topic}",
-                    "description": "Crear el boceto general de arquitectura e interfaz."
-                },
-                {
-                    "title": f"Ejecutar y validar {topic}",
-                    "description": "Desarrollar la primera iteración y realizar pruebas de funcionamiento."
-                }
-            ]
+            },
+            status=status.HTTP_200_OK,
+        )
 
-        # Guardar las tareas generadas en PostgreSQL
-        created_tasks = []
-        for item in generated_tasks:
-            task = Task.objects.create(
-                title=item.get('title', 'Tarea sugerida por IA'),
-                description=item.get('description', ''),
-                completed=False
-            )
-            created_tasks.append(task)
+    def _build_report(
+        self,
+        *,
+        tasks_payload: list[dict[str, object]],
+        total: int,
+        completed: int,
+        pending: int,
+        report_format: str,
+        language: str,
+        priority_task: dict[str, object] | None,
+    ) -> str:
+        """Generate the report through the shared GrokChatService pipeline."""
+        service = GrokChatService(
+            api_key=os.getenv("GROK_API_KEY"),
+            model=os.getenv("GROK_MODEL", "grok-beta"),
+        )
+        return service.generate_report(
+            prompt=None,
+            tasks_payload=tasks_payload,
+            total=total,
+            completed=completed,
+            pending=pending,
+            language=language,
+            report_format=report_format,
+        )
 
-        # Responder al frontend
-        serializer = TaskSerializer(created_tasks, many=True)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    
+    def _pick_priority_task(self, tasks_payload: list[dict[str, object]]) -> dict[str, object] | None:
+        """Pick the single task that should be prioritized next."""
+        if not tasks_payload:
+            return None
+
+        pending_tasks = [task for task in tasks_payload if not bool(task.get("done", False))]
+        candidate_tasks = pending_tasks or tasks_payload
+
+        return sorted(
+            candidate_tasks,
+            key=lambda task: (
+                -self._task_priority_score(task),
+                bool(task.get("done", False)),
+                str(task.get("created_at", "")),
+                str(task.get("title", "")),
+            ),
+        )[0]
+
+    def _task_priority_score(self, task: dict[str, object]) -> int:
+        """Score a task by urgency signals in its title and content."""
+        haystack = f"{task.get('title', '')} {task.get('content', '')}".lower()
+        score = 0
+        for keyword in self._PRIORITY_KEYWORDS:
+            if keyword in haystack:
+                score += 1
+        return score

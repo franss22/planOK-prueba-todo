@@ -37,6 +37,16 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       GROK_API_KEY: ${GROK_API_KEY:-}
       GROK_MODEL: ${GROK_MODEL:-grok-4}
+    labels:
+      - "traefik.enable=true"
+
+      # API router
+      - "traefik.http.routers.planok-api.rule=Host(`planok-test.emidev.cl`) && PathPrefix(`/api/v1`)"
+      - "traefik.http.routers.planok-api.entrypoints=https"
+      - "traefik.http.routers.planok-api.tls=true"
+
+      # backend service
+      - "traefik.http.services.planok-api.loadbalancer.server.port=8000"
     depends_on:
       db:
         condition: service_healthy
@@ -48,6 +58,15 @@ services:
     command: [ "npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000" ]
     expose:
       - "3000"
+    labels:
+      - "traefik.enable=true"
+
+      # Frontend router
+      - "traefik.http.routers.planok-frontend.rule=Host(`planok-test.emidev.cl`)"
+      - "traefik.http.routers.planok-frontend.entrypoints=https"
+      - "traefik.http.routers.planok-frontend.tls=true"
+
+      - "traefik.http.services.planok-frontend.loadbalancer.server.port=3000"
     depends_on:
       - api
 

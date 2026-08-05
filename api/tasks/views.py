@@ -76,6 +76,8 @@ class TaskReportAPIView(APIView):
             for task in report_tasks
         ]
 
+        priority_task = self._pick_priority_task(tasks_payload)
+
         report_text = self._build_report(
             tasks_payload=tasks_payload,
             total=total,
@@ -83,6 +85,7 @@ class TaskReportAPIView(APIView):
             pending=pending,
             report_format=report_format,
             language=language,
+            priority_task=priority_task,
         )
 
         return Response(
@@ -108,27 +111,37 @@ class TaskReportAPIView(APIView):
         pending: int,
         report_format: str,
         language: str,
+        priority_task: dict[str, object] | None,
     ) -> str:
         """Build a report with Grok, or return a deterministic fallback if no API key exists."""
         grok_api_key = os.getenv("GROK_API_KEY")
         grok_model = os.getenv("GROK_MODEL", "grok-beta")
 
         if not grok_api_key:
-            return f"Report ({report_format}, {language}): total={total}, completed={completed}, pending={pending}."
+            return self._build_fallback_report(
+                tasks_payload=tasks_payload,
+                total=total,
+                completed=completed,
+                pending=pending,
+                report_format=report_format,
+                language=language,
+                priority_task=priority_task,
+            )
 
         prompt = ChatPromptTemplate.from_template(
             """
-            You are a project assistant that creates concise task reports.
+            You are a project assistant that writes a short but human-readable task analysis.
 
             Language: {language}
             Format: {report_format}
             Totals: total={total}, completed={completed}, pending={pending}
+            Priority task: {priority_task}
             Tasks: {tasks_payload}
 
-            Return a clear report with:
-            1) Status summary
-            2) Key pending tasks
-            3) Recommended next actions
+            Return a short written analysis with:
+            1) a summary of the current state,
+            2) the one task that should be prioritized next,
+            3) practical suggestions or next steps focused on that task.
             """
         )
 
@@ -140,7 +153,56 @@ class TaskReportAPIView(APIView):
                 "total": total,
                 "completed": completed,
                 "pending": pending,
+                "priority_task": priority_task,
                 "tasks_payload": tasks_payload,
             }
         )
         return response.content
+
+    def _build_fallback_report(
+        self,
+        *,
+        tasks_payload: list[dict[str, object]],
+        total: int,
+        completed: int,
+        pending: int,
+        report_format: str,
+        language: str,
+        priority_task: dict[str, object] | None,
+    ) -> str:
+        fallback_mode = os.getenv("GROK_FALLBACK_MODE", "analysis").strip().lower()
+        fallback_style = os.getenv("GROK_FALLBACK_STYLE", "written").strip().lower()
+        fallback_note = os.getenv(
+            "GROK_FALLBACK_NOTE",
+            "Name one task to prioritize and explain why it should be next.",
+        ).strip()
+        priority_title = str(priority_task.get("title", "task")) if priority_task else "no tasks"
+
+        if fallback_mode == "summary":
+            return (
+                f"{fallback_style.capitalize()} fallback report in {language}. "
+                f"Totals: total={total}, completed={completed}, pending={pending}. "
+                f"Priority task: {priority_title}. Note: {fallback_note}"
+            )
+
+        return (
+            f"{fallback_style.capitalize()} analysis in {language}: {completed} of {total} tasks are completed, "
+            f"leaving {pending} pending. Prioritize '{priority_title}' next. Suggestion: {fallback_note}"
+        )
+
+    def _pick_priority_task(self, tasks_payload: list[dict[str, object]]) -> dict[str, object] | None:
+        """Pick the single task that should be prioritized next."""
+        if not tasks_payload:
+            return None
+
+        pending_tasks = [task for task in tasks_payload if not bool(task.get("done", False))]
+        candidate_tasks = pending_tasks or tasks_payload
+
+        return sorted(
+            candidate_tasks,
+            key=lambda task: (
+                bool(task.get("done", False)),
+                str(task.get("created_at", "")),
+                str(task.get("title", "")),
+            ),
+        )[0]

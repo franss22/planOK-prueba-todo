@@ -191,6 +191,21 @@ class TaskReportApiTests(APITestCase):
         self.assertEqual(response.data["stats"]["completed"], 1)
         self.assertEqual(response.data["stats"]["pending"], 1)
 
+    @patch.dict("os.environ", {"GROK_API_KEY": ""}, clear=False)
+    def test_report_endpoint_without_api_key_names_priority_task(self) -> None:
+        """Fallback report should name the single task that should be prioritized."""
+        Task.objects.create(title="Urgent fix", content="Fix the blocker", done=False)
+
+        response = self.client.post(
+            self.report_url,
+            {"format": "summary", "include_completed": True, "language": "es"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("Urgent fix", response.data["report"])
+        self.assertIn("Prioritize", response.data["report"])
+
     @patch("tasks.views.TaskReportAPIView._build_report", return_value="mocked report")
     @patch.dict("os.environ", {"GROK_API_KEY": "test-key", "GROK_MODEL": "grok-test"}, clear=False)
     def test_report_endpoint_with_api_key_uses_report_builder(self, mock_build_report: Mock) -> None:

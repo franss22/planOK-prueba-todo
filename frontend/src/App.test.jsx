@@ -37,6 +37,16 @@ describe("Frontend Integration Tests - App Component", () => {
     });
   });
 
+  it("1b. Solicita las tareas al endpoint del backend al cargar", async () => {
+    api.get.mockResolvedValueOnce({ data: [] });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith("tasks/");
+    });
+  });
+
   it("2. Filtra correctamente las tareas por estado (Pendientes / Completadas)", async () => {
     const mockTasks = [
       {

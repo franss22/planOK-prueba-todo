@@ -6,12 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install dependencies first for better layer caching.
-COPY pyproject.toml uv.lock .python-version ./
-RUN uv sync --frozen --no-dev
-
-# Copy project files after dependencies.
+# Copy project files first so packaging metadata is available during build.
+COPY pyproject.toml uv.lock .python-version README.md ./
 COPY . .
+
+RUN uv sync --frozen --no-dev --no-install-project
 
 EXPOSE 8000
 

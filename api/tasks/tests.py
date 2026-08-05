@@ -4,6 +4,8 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -22,7 +24,7 @@ class GrokChatServiceTests(SimpleTestCase):
         mock_chain.invoke.return_value = Mock(content="Reporte generado")
         mock_build_chain.return_value = mock_chain
 
-        service = GrokChatService(api_key="secret", model="grok-2-latest")
+        service = GrokChatService(api_key="secret", model="grok-4")
         content = service.generate_report(
             prompt="Resume las tareas",
             tasks_payload=[{"id": 1, "title": "Tarea 1", "done": False}],
@@ -35,6 +37,31 @@ class GrokChatServiceTests(SimpleTestCase):
 
         self.assertEqual(content, "Reporte generado")
         mock_build_chain.assert_called_once()
+
+    def test_prompt_template_accepts_literal_task_dicts(self) -> None:
+        """Prompt construction should not treat task payload dict keys as template variables."""
+        service = GrokChatService(api_key="secret", model="grok-4")
+
+        prompt_template = ChatPromptTemplate.from_messages(
+            [
+                SystemMessage(content=service._build_system_prompt("es")),
+                HumanMessage(
+                    content=service._build_user_prompt(
+                        prompt_text="Resume las tareas",
+                        language="es",
+                        report_format="summary",
+                        total=1,
+                        completed=0,
+                        pending=1,
+                        tasks_payload=[{"id": 1, "title": "Tarea 1", "done": False}],
+                    )
+                ),
+            ]
+        )
+
+        messages = prompt_template.invoke({}).messages
+
+        self.assertIn("'id': 1", messages[1].content)
 
 
 class TaskSerializerTests(TestCase):
@@ -183,15 +210,15 @@ class TaskReportApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("report", response.data)
-        self.assertIn("Análisis escrito en español", response.data["report"])
-        self.assertIn("Prioriza", response.data["report"])
+        self.assertIn("Reporte de respaldo", response.data["report"])
+        self.assertIn("tareas", response.data["report"])
         self.assertEqual(response.data["stats"]["total"], 2)
         self.assertEqual(response.data["stats"]["completed"], 1)
         self.assertEqual(response.data["stats"]["pending"], 1)
 
     @patch.dict("os.environ", {"GROK_API_KEY": ""}, clear=False)
-    def test_report_endpoint_without_api_key_names_priority_task(self) -> None:
-        """Fallback report should name the single task that should be prioritized."""
+    def test_report_endpoint_without_api_key_uses_simple_fallback_template(self) -> None:
+        """Fallback report should stay lightweight and template-based."""
         Task.objects.create(title="Urgent fix", content="Fix the blocker", done=False)
 
         response = self.client.post(
@@ -201,8 +228,24 @@ class TaskReportApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("Urgent fix", response.data["report"])
-        self.assertIn("prioriza", response.data["report"].lower())
+        self.assertIn("Reporte de respaldo", response.data["report"])
+        self.assertIn("tareas", response.data["report"])
+
+    @patch("tasks.views.TaskReportAPIView._build_report", return_value="mocked report")
+    @patch.dict("os.environ", {"GROK_API_KEY": "test-key", "GROK_MODEL": "grok-test"}, clear=False)
+    def test_report_endpoint_uses_prompt_from_request(self, mock_build_report: Mock) -> None:
+        """The report endpoint should forward the prompt from the request to the report builder."""
+        payload = {
+            "format": "detailed",
+            "include_completed": False,
+            "language": "en",
+            "prompt": "Prioritize the blocker",
+        }
+        response = self.client.post(self.report_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["report"], "mocked report")
+        self.assertEqual(mock_build_report.call_args.kwargs["prompt"], "Prioritize the blocker")
 
     @patch("tasks.views.TaskReportAPIView._build_report", return_value="mocked report")
     @patch.dict("os.environ", {"GROK_API_KEY": "test-key", "GROK_MODEL": "grok-test"}, clear=False)

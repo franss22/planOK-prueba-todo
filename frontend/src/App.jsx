@@ -1,23 +1,53 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createTask, deleteTask, fetchTasks, generateTaskReport, updateTask } from "./api";
+
+const renderInlineMarkdown = (text) => {
+  const segments = text.split(/(\*\*.*?\*\*)/g);
+
+  return segments.filter(Boolean).map((segment, index) => {
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return <strong key={`bold-${index}`}>{segment.slice(2, -2)}</strong>;
+    }
+
+    return <span key={`text-${index}`}>{segment}</span>;
+  });
+};
+
+const renderReportMarkdown = (text) => {
+  const blocks = text.split(/\n\s*\n/).filter((block) => block.trim().length > 0);
+
+  return blocks.map((block, blockIndex) => {
+    const trimmedBlock = block.trim();
+    const headingMatch = trimmedBlock.match(/^\*\*(.+)\*\*$/);
+
+    if (headingMatch) {
+      return (
+        <h3
+          key={`heading-${blockIndex}`}
+          style={{ margin: blockIndex === 0 ? 0 : "20px 0 0", color: "#111827", fontSize: "18px" }}
+        >
+          {headingMatch[1]}
+        </h3>
+      );
+    }
+
+    const lines = block.split("\n");
+
+    return (
+      <p key={`paragraph-${blockIndex}`} style={{ margin: blockIndex === 0 ? 0 : "16px 0 0" }}>
+        {lines.map((line, lineIndex) => (
+          <span key={`line-${blockIndex}-${lineIndex}`}>
+            {renderInlineMarkdown(line)}
+            {lineIndex < lines.length - 1 ? <br /> : null}
+          </span>
+        ))}
+      </p>
+    );
+  });
+};
 
 function App() {
-  // Estado inicial local con datos de prueba
-  const [tasks, setTasks] = useState([
-    {
-      id: 1,
-      title: "Diseñar prototipo de UI",
-      description: "Crear wireframes en Figma para la vista principal.",
-      completed: false,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      title: "Configurar repositorio",
-      description: "Inicializar proyecto con Git y React.",
-      completed: true,
-      created_at: new Date().toISOString(),
-    },
-  ]);
+  const [tasks, setTasks] = useState([]);
 
   // Estado para el filtro de tareas ('all' | 'completed' | 'pending')
   const [filter, setFilter] = useState("all");
@@ -27,8 +57,11 @@ function App() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   // Estados para Modal de IA
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiTopic, setAiTopic] = useState("");
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+  // Estado para el reporte generado
+  const [report, setReport] = useState(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   // Tarea seleccionada (para editar o ver detalle)
   const [selectedTask, setSelectedTask] = useState(null);
@@ -36,6 +69,19 @@ function App() {
   // Campos del formulario
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const normalizedTasks = await fetchTasks();
+        setTasks(normalizedTasks);
+      } catch (error) {
+        console.error("Error loading tasks", error);
+      }
+    };
+
+    loadTasks();
+  }, []);
 
   // Contadores calculados directamente en render (sin necesidad de useEffect)
   const completedCount = tasks.filter((t) => t.completed).length;
@@ -86,80 +132,90 @@ function App() {
     setIsDetailModalOpen(true);
   };
 
-  // Guardar tarea (Crear o Editar localmente)
-  const handleSubmitForm = (e) => {
+  // Guardar tarea (Crear o Editar contra la API)
+  const handleSubmitForm = async (e) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    if (selectedTask) {
-      // Editar existente
-      setTasks(
-        tasks.map((t) =>
-          t.id === selectedTask.id ? { ...t, title, description } : t
-        )
-      );
-    } else {
-      // Crear nueva tarea local
-      const newTask = {
-        id: Date.now(),
-        title,
-        description,
-        completed: false,
-        created_at: new Date().toISOString(),
-      };
-      setTasks([newTask, ...tasks]);
+    try {
+      if (selectedTask) {
+        const updatedTask = await updateTask(selectedTask.id, {
+          title,
+          content: description,
+          done: selectedTask.completed,
+        });
+        setTasks(
+          tasks.map((t) =>
+            t.id === selectedTask.id
+              ? {
+                  ...t,
+                  title: updatedTask.title,
+                  description: updatedTask.description,
+                  completed: updatedTask.completed,
+                }
+              : t
+          )
+        );
+      } else {
+        const newTask = await createTask({
+          title,
+          content: description,
+          done: false,
+        });
+        setTasks([newTask, ...tasks]);
+      }
+    } catch (error) {
+      console.error("Error saving task", error);
     }
 
     setIsFormModalOpen(false);
   };
 
-  // Simular la generación de tareas con IA
-  const handleGenerateAiTasks = (e) => {
-    e.preventDefault();
-    if (!aiTopic.trim()) return;
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true);
 
-    // Generar 3 tareas simuladas basadas en el tema ingresado
-    const generatedTasks = [
-      {
-        id: Date.now() + 1,
-        title: `Investigar sobre ${aiTopic}`,
-        description: `Recopilar información inicial y requerimientos para ${aiTopic}.`,
-        completed: false,
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: Date.now() + 2,
-        title: `Planificar plan de acción para ${aiTopic}`,
-        description: `Definir hitos principales y entregables.`,
-        completed: false,
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: Date.now() + 3,
-        title: `Ejecutar primera fase de ${aiTopic}`,
-        description: `Comenzar con la implementación de las tareas prioritarias.`,
-        completed: false,
-        created_at: new Date().toISOString(),
-      },
-    ];
-
-    setTasks([...generatedTasks, ...tasks]);
-    setAiTopic("");
-    setIsAiModalOpen(false);
+    try {
+      const payload = await generateTaskReport();
+      setReport(payload);
+      setIsReportOpen(true);
+    } catch (error) {
+      console.error("Error generating report", error);
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   // Avanzar estado directo: Pendiente (0%) -> Completada (100%)
-  const handleAdvanceStatus = (task) => {
+  const handleAdvanceStatus = async (task) => {
     if (task.completed) return;
 
-    setTasks(
-      tasks.map((t) => (t.id === task.id ? { ...t, completed: true } : t))
-    );
+    try {
+      const updatedTask = await updateTask(task.id, {
+        done: true,
+      });
+      setTasks(
+        tasks.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                completed: Boolean(updatedTask.done),
+              }
+            : t
+        )
+      );
+    } catch (error) {
+      console.error("Error updating task", error);
+    }
   };
 
   // Eliminar tarea del estado local
-  const handleDeleteTask = (id) => {
-    setTasks(tasks.filter((t) => t.id !== id));
+  const handleDeleteTask = async (id) => {
+    try {
+      await deleteTask(id);
+      setTasks(tasks.filter((t) => t.id !== id));
+    } catch (error) {
+      console.error("Error deleting task", error);
+    }
     if (isDetailModalOpen) setIsDetailModalOpen(false);
   };
 
@@ -178,11 +234,13 @@ function App() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "20px",
+          gap: "18px",
+          marginBottom: "28px",
+          flexWrap: "wrap",
         }}
       >
-        <h1 style={{ margin: 0 }}>Gestor de Tareas</h1>
-        <div style={{ display: "flex", gap: "10px" }}>
+        <h1 style={{ margin: 0, lineHeight: 1.1 }}>Gestor de Tareas</h1>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {/* <button
             onClick={() => setIsAiModalOpen(true)}
             style={{
@@ -197,6 +255,22 @@ function App() {
           >
             ✨ Generar con IA
           </button> */}
+          <button
+            onClick={handleGenerateReport}
+            disabled={isGeneratingReport}
+            style={{
+              padding: "10px 15px",
+              fontSize: "15px",
+              backgroundColor: "#6f42c1",
+              color: "#fff",
+              border: "none",
+              borderRadius: "5px",
+              cursor: isGeneratingReport ? "wait" : "pointer",
+              opacity: isGeneratingReport ? 0.8 : 1,
+            }}
+          >
+            {isGeneratingReport ? "Generando..." : "📄 Generar Reporte"}
+          </button>
           <button
             onClick={handleOpenCreateModal}
             style={{
@@ -549,73 +623,42 @@ function App() {
         </div>
       )}
 
-      {/* MODAL 3: Agente de IA (Simulado) */}
-      {isAiModalOpen && (
+      {isReportOpen && report && (
         <div style={modalBackdropStyle}>
-          <div style={modalContentStyle}>
-            <h2>Generar Tareas con IA</h2>
-            <p style={{ color: "#666", fontSize: "14px" }}>
-              Describe un objetivo o proyecto y el agente generará tareas de ejemplo automáticamente.
+          <div
+            style={{
+              ...modalContentStyle,
+              maxWidth: "640px",
+              textAlign: "left",
+            }}
+          >
+            <h2 style={{ margin: 0, color: "#1f2937", fontSize: "24px" }}>Reporte generado</h2>
+            <p style={{ color: "#4b5563", fontSize: "14px", margin: "8px 0 12px" }}>
+              {report.model ? `Modelo: ${report.model}` : "Reporte listo"}
             </p>
-
-            <form
-              onSubmit={handleGenerateAiTasks}
+            <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "15px",
-                marginTop: "15px",
+                maxHeight: "320px",
+                overflowY: "auto",
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+                backgroundColor: "#f3f4f6",
+                color: "#111827",
+                border: "1px solid #d1d5db",
+                padding: "16px",
+                borderRadius: "8px",
+                lineHeight: 1.7,
+                fontSize: "15px",
+                textAlign: "left",
               }}
             >
-              <div>
-                <label style={{ display: "block", marginBottom: "5px" }}>
-                  Objetivo o Proyecto:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: Lanzar MVP de un e-commerce..."
-                  value={aiTopic}
-                  onChange={(e) => setAiTopic(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    fontSize: "16px",
-                    boxSizing: "border-box",
-                  }}
-                  required
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: "10px",
-                  marginTop: "10px",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setIsAiModalOpen(false)}
-                  style={{ padding: "8px 16px", cursor: "pointer" }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: "8px 16px",
-                    backgroundColor: "#6f42c1",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Generar Tareas
-                </button>
-              </div>
-            </form>
+              {report.report ? renderReportMarkdown(report.report) : "No se pudo generar un reporte."}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
+              <button type="button" onClick={() => setIsReportOpen(false)} style={{ padding: "8px 16px", cursor: "pointer" }}>
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

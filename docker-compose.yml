@@ -22,7 +22,8 @@ services:
       context: ./api
       dockerfile: Dockerfile
     container_name: task_api
-    command: [ "uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000" ]
+    command: >
+      sh -c "uv run python manage.py migrate && uv run python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./api:/app
     ports:
@@ -39,18 +40,16 @@ services:
       DB_PORT: 5432
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       GROK_API_KEY: ${GROK_API_KEY:-}
-      GROK_MODEL: ${GROK_MODEL:-grok-beta}
+      GROK_MODEL: ${GROK_MODEL:-grok-4}
     depends_on:
       db:
         condition: service_healthy
 
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
-      target: frontend-stage
     container_name: task_frontend
-    # command: tail -f /dev/null # Se mantiene en espera para inicializar React
     command: [ "npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000" ]
     volumes:
       - ./frontend:/app

@@ -7,7 +7,7 @@ from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .grok_service import GrokChatService
+from .grok_service import DEFAULT_GROK_MODEL, GrokChatService
 from .models import Task
 from .serializers import TaskReportRequestSerializer, TaskSerializer
 
@@ -44,21 +44,22 @@ class TaskViewSet(viewsets.ModelViewSet):
 class TaskReportAPIView(APIView):
     """Endpoint for generating AI task reports."""
 
-    _PRIORITY_KEYWORDS = (
-        "urgent",
-        "urgente",
-        "critical",
-        "critico",
-        "crítico",
-        "blocker",
-        "bloqueo",
-        "important",
-        "importante",
-        "priority",
-        "prioridad",
-        "fix",
-        "asap",
-    )
+    _FALLBACK_STRINGS = {
+        "en": {
+            "title": "Fallback report",
+            "summary": "There are {total} tasks in total: {completed} completed and {pending} pending.",
+            "focus": "Focus next on: {task_title}.",
+            "reason": "Reason: it is still pending and should be handled before less urgent work.",
+            "empty": "No tasks are available to analyze.",
+        },
+        "es": {
+            "title": "Reporte de respaldo",
+            "summary": "Hay {total} tareas en total: {completed} completadas y {pending} pendientes.",
+            "focus": "Enfócate después en: {task_title}.",
+            "reason": "Motivo: sigue pendiente y conviene resolverla antes que el trabajo menos urgente.",
+            "empty": "No hay tareas disponibles para analizar.",
+        },
+    }
 
     def post(self, request: Request) -> Response:
         """Validate request parameters and return a task report payload."""
@@ -91,8 +92,6 @@ class TaskReportAPIView(APIView):
             for task in report_tasks
         ]
 
-        priority_task = self._pick_priority_task(tasks_payload)
-
         report_text = self._build_report(
             tasks_payload=tasks_payload,
             total=total,
@@ -100,13 +99,13 @@ class TaskReportAPIView(APIView):
             pending=pending,
             report_format=report_format,
             language=language,
-            priority_task=priority_task,
+            prompt=serializer.validated_data.get("prompt", ""),
         )
 
         return Response(
             {
                 "generated_at": Task.objects.first().created_at.isoformat() if total else None,
-                "model": os.getenv("GROK_MODEL", "grok"),
+                "model": os.getenv("GROK_MODEL", DEFAULT_GROK_MODEL),
                 "report": report_text,
                 "stats": {
                     "total": total,
@@ -126,15 +125,24 @@ class TaskReportAPIView(APIView):
         pending: int,
         report_format: str,
         language: str,
-        priority_task: dict[str, object] | None,
+        prompt: str | None = None,
     ) -> str:
         """Generate the report through the shared GrokChatService pipeline."""
+        if not (os.getenv("GROK_API_KEY") or os.getenv("XAI_API_KEY")):
+            return self._build_fallback_report(
+                tasks_payload=tasks_payload,
+                total=total,
+                completed=completed,
+                pending=pending,
+                language=language,
+            )
+
         service = GrokChatService(
             api_key=os.getenv("GROK_API_KEY"),
-            model=os.getenv("GROK_MODEL", "grok-beta"),
+            model=os.getenv("GROK_MODEL", DEFAULT_GROK_MODEL),
         )
         return service.generate_report(
-            prompt=None,
+            prompt=prompt,
             tasks_payload=tasks_payload,
             total=total,
             completed=completed,
@@ -143,29 +151,29 @@ class TaskReportAPIView(APIView):
             report_format=report_format,
         )
 
-    def _pick_priority_task(self, tasks_payload: list[dict[str, object]]) -> dict[str, object] | None:
-        """Pick the single task that should be prioritized next."""
-        if not tasks_payload:
-            return None
+    def _build_fallback_report(
+        self,
+        *,
+        tasks_payload: list[dict[str, object]],
+        total: int,
+        completed: int,
+        pending: int,
+        language: str,
+    ) -> str:
+        """Return a deterministic local report when no AI credentials are configured."""
+        strings = self._FALLBACK_STRINGS["es" if language.strip().lower().startswith("es") else "en"]
+        summary = strings["summary"].format(total=total, completed=completed, pending=pending)
 
-        pending_tasks = [task for task in tasks_payload if not bool(task.get("done", False))]
-        candidate_tasks = pending_tasks or tasks_payload
+        pending_task = next((task for task in tasks_payload if not task.get("done")), None)
+        if pending_task:
+            focus = strings["focus"].format(task_title=pending_task["title"])
+            reason = strings["reason"]
+        else:
+            focus = strings["empty"]
+            reason = ""
 
-        return sorted(
-            candidate_tasks,
-            key=lambda task: (
-                -self._task_priority_score(task),
-                bool(task.get("done", False)),
-                str(task.get("created_at", "")),
-                str(task.get("title", "")),
-            ),
-        )[0]
+        report_parts = [strings["title"], summary, focus]
+        if reason:
+            report_parts.append(reason)
+        return " ".join(report_parts)
 
-    def _task_priority_score(self, task: dict[str, object]) -> int:
-        """Score a task by urgency signals in its title and content."""
-        haystack = f"{task.get('title', '')} {task.get('content', '')}".lower()
-        score = 0
-        for keyword in self._PRIORITY_KEYWORDS:
-            if keyword in haystack:
-                score += 1
-        return score

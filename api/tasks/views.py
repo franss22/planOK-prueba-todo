@@ -26,13 +26,13 @@ class TaskViewSet(viewsets.ModelViewSet):
         """Retrieve the queryset of Task instances, optionally filtered by query parameters."""
         queryset = super().get_queryset()
 
-        done = self.request.query_params.get("done")
-        if done is not None:
-            normalized = done.strip().lower()
+        completed = self.request.query_params.get("completed")
+        if completed is not None:
+            normalized = completed.strip().lower()
             if normalized in {"true", "1", "yes", "on"}:
-                queryset = queryset.filter(done=True)
+                queryset = queryset.filter(completed=True)
             elif normalized in {"false", "0", "no", "off"}:
-                queryset = queryset.filter(done=False)
+                queryset = queryset.filter(completed=False)
 
         search = self.request.query_params.get("search")
         if search:
@@ -75,18 +75,18 @@ class TaskReportAPIView(APIView):
         if task_ids:
             report_tasks = all_tasks.filter(id__in=task_ids)
         else:
-            report_tasks = all_tasks if include_completed else all_tasks.filter(done=False)
+            report_tasks = all_tasks if include_completed else all_tasks.filter(completed=False)
 
         total = all_tasks.count()
-        completed = all_tasks.filter(done=True).count()
-        pending = all_tasks.filter(done=False).count()
+        completed = all_tasks.filter(completed=True).count()
+        pending = all_tasks.filter(completed=False).count()
 
         tasks_payload = [
             {
                 "id": task.id,
                 "title": task.title,
                 "content": task.content,
-                "done": task.done,
+                "completed": task.completed,
                 "created_at": task.created_at.isoformat(),
             }
             for task in report_tasks
@@ -164,7 +164,7 @@ class TaskReportAPIView(APIView):
         strings = self._FALLBACK_STRINGS["es" if language.strip().lower().startswith("es") else "en"]
         summary = strings["summary"].format(total=total, completed=completed, pending=pending)
 
-        pending_task = next((task for task in tasks_payload if not task.get("done")), None)
+        pending_task = next((task for task in tasks_payload if not task.get("completed")), None)
         if pending_task:
             focus = strings["focus"].format(task_title=pending_task["title"])
             reason = strings["reason"]

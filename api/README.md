@@ -12,7 +12,7 @@ Lean backend plan for a Todo app.
 - `id`
 - `title`
 - `content`
-- `done` (bool)
+- `completed` (bool)
 - `created_at`
 
 ## API Direction

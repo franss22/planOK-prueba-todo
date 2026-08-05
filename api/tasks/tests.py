@@ -27,7 +27,7 @@ class GrokChatServiceTests(SimpleTestCase):
         service = GrokChatService(api_key="secret", model="grok-4")
         content = service.generate_report(
             prompt="Resume las tareas",
-            tasks_payload=[{"id": 1, "title": "Tarea 1", "done": False}],
+            tasks_payload=[{"id": 1, "title": "Tarea 1", "completed": False}],
             total=1,
             completed=0,
             pending=1,
@@ -53,7 +53,7 @@ class GrokChatServiceTests(SimpleTestCase):
                         total=1,
                         completed=0,
                         pending=1,
-                        tasks_payload=[{"id": 1, "title": "Tarea 1", "done": False}],
+                        tasks_payload=[{"id": 1, "title": "Tarea 1", "completed": False}],
                     )
                 ),
             ]
@@ -68,13 +68,13 @@ class TaskSerializerTests(TestCase):
     """Tests for task-related serializers."""
 
     def test_task_serializer_valid_data_sets_default_done(self) -> None:
-        """TaskSerializer should accept valid payload and use model default done when omitted."""
+        """TaskSerializer should accept valid payload and use model default completed when omitted."""
         serializer = TaskSerializer(data={"title": "Buy milk", "content": "2 liters"})
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
         task = serializer.save()
 
-        self.assertFalse(task.done)
+        self.assertFalse(task.completed)
         self.assertEqual(task.title, "Buy milk")
 
     def test_task_serializer_requires_title_and_content(self) -> None:
@@ -108,7 +108,7 @@ class TaskCrudApiTests(APITestCase):
     def setUp(self) -> None:
         """Create base URL and seed task for detail endpoint tests."""
         self.list_url = reverse("task-list")
-        self.task = Task.objects.create(title="Initial task", content="Initial content", done=False)
+        self.task = Task.objects.create(title="Initial task", content="Initial content", completed=False)
 
     def test_list_tasks_returns_paginated_payload(self) -> None:
         """List endpoint should return paginated task results."""
@@ -124,7 +124,7 @@ class TaskCrudApiTests(APITestCase):
         payload = {
             "title": "Write tests",
             "content": "Add CRUD tests",
-            "done": True,
+            "completed": True,
         }
 
         response = self.client.post(self.list_url, payload, format="json")
@@ -134,7 +134,7 @@ class TaskCrudApiTests(APITestCase):
         created = Task.objects.get(id=response.data["id"])
         self.assertEqual(created.title, payload["title"])
         self.assertEqual(created.content, payload["content"])
-        self.assertTrue(created.done)
+        self.assertTrue(created.completed)
 
     def test_retrieve_task(self) -> None:
         """Detail endpoint should return a single task by id."""
@@ -148,11 +148,11 @@ class TaskCrudApiTests(APITestCase):
     def test_partial_update_task(self) -> None:
         """Patch endpoint should update only provided fields."""
         url = reverse("task-detail", args=[self.task.id])
-        response = self.client.patch(url, {"done": True}, format="json")
+        response = self.client.patch(url, {"completed": True}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.task.refresh_from_db()
-        self.assertTrue(self.task.done)
+        self.assertTrue(self.task.completed)
         self.assertEqual(self.task.title, "Initial task")
 
     def test_delete_task(self) -> None:
@@ -164,11 +164,11 @@ class TaskCrudApiTests(APITestCase):
         self.assertFalse(Task.objects.filter(id=self.task.id).exists())
 
     def test_list_tasks_filters_by_done(self) -> None:
-        """List endpoint should filter tasks by done query parameter."""
-        done_task = Task.objects.create(title="Done task", content="Completed", done=True)
+        """List endpoint should filter tasks by completed query parameter."""
+        done_task = Task.objects.create(title="completed task", content="Completed", completed=True)
 
-        pending_response = self.client.get(self.list_url, {"done": "false"})
-        done_response = self.client.get(self.list_url, {"done": "true"})
+        pending_response = self.client.get(self.list_url, {"completed": "false"})
+        done_response = self.client.get(self.list_url, {"completed": "true"})
 
         self.assertEqual(pending_response.status_code, status.HTTP_200_OK)
         self.assertEqual(done_response.status_code, status.HTTP_200_OK)
@@ -183,8 +183,8 @@ class TaskCrudApiTests(APITestCase):
 
     def test_list_tasks_filters_by_search(self) -> None:
         """List endpoint should filter tasks by title/content search query parameter."""
-        Task.objects.create(title="Do laundry", content="Use cold cycle", done=False)
-        Task.objects.create(title="Read book", content="Search chapter", done=False)
+        Task.objects.create(title="Do laundry", content="Use cold cycle", completed=False)
+        Task.objects.create(title="Read book", content="Search chapter", completed=False)
 
         response = self.client.get(self.list_url, {"search": "laundry"})
 
@@ -199,8 +199,8 @@ class TaskReportApiTests(APITestCase):
     def setUp(self) -> None:
         """Create sample tasks and report endpoint URL."""
         self.report_url = reverse("tasks-report")
-        Task.objects.create(title="Pending task", content="To do", done=False)
-        Task.objects.create(title="Done task", content="Already done", done=True)
+        Task.objects.create(title="Pending task", content="To do", completed=False)
+        Task.objects.create(title="completed task", content="Already completed", completed=True)
 
     @patch.dict("os.environ", {"GROK_API_KEY": ""}, clear=False)
     def test_report_endpoint_without_api_key_returns_fallback(self) -> None:
@@ -219,7 +219,7 @@ class TaskReportApiTests(APITestCase):
     @patch.dict("os.environ", {"GROK_API_KEY": ""}, clear=False)
     def test_report_endpoint_without_api_key_uses_simple_fallback_template(self) -> None:
         """Fallback report should stay lightweight and template-based."""
-        Task.objects.create(title="Urgent fix", content="Fix the blocker", done=False)
+        Task.objects.create(title="Urgent fix", content="Fix the blocker", completed=False)
 
         response = self.client.post(
             self.report_url,

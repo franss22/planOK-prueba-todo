@@ -16,7 +16,7 @@ export const fetchTasks = async () => {
     id: task.id,
     title: task.title,
     description: task.content || task.description || "",
-    completed: Boolean(task.done),
+    completed: Boolean(task.completed),
     created_at: task.created_at,
   }));
 };
@@ -28,7 +28,7 @@ export const createTask = async (payload) => {
     id: task.id,
     title: task.title,
     description: task.content || task.description || "",
-    completed: Boolean(task.done),
+    completed: Boolean(task.completed),
     created_at: task.created_at,
   };
 };
@@ -40,7 +40,7 @@ export const updateTask = async (id, payload) => {
     id: task.id,
     title: task.title,
     description: task.content || task.description || "",
-    completed: Boolean(task.done),
+    completed: Boolean(task.completed),
     created_at: task.created_at,
   };
 };

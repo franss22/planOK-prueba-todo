@@ -142,7 +142,7 @@ function App() {
         const updatedTask = await updateTask(selectedTask.id, {
           title,
           content: description,
-          done: selectedTask.completed,
+          completed: selectedTask.completed,
         });
         setTasks(
           tasks.map((t) =>
@@ -160,7 +160,7 @@ function App() {
         const newTask = await createTask({
           title,
           content: description,
-          done: false,
+          completed: false,
         });
         setTasks([newTask, ...tasks]);
       }
@@ -191,14 +191,14 @@ function App() {
 
     try {
       const updatedTask = await updateTask(task.id, {
-        done: true,
+        completed: true,
       });
       setTasks(
         tasks.map((t) =>
           t.id === task.id
             ? {
                 ...t,
-                completed: Boolean(updatedTask.done),
+                completed: Boolean(updatedTask.completed),
               }
             : t
         )

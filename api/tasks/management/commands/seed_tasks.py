@@ -81,13 +81,13 @@ class Command(BaseCommand):
                 Task(
                     title=f"{title_seed} #{index + 1}",
                     content=content_seed,
-                    done=is_completed,
+                    completed=is_completed,
                 )
             )
 
         Task.objects.bulk_create(tasks_to_create)
 
-        completed = sum(1 for task in tasks_to_create if task.done)
+        completed = sum(1 for task in tasks_to_create if task.completed)
         pending = count - completed
 
         self.stdout.write(self.style.SUCCESS(f"Created {count} tasks (completed={completed}, pending={pending})."))

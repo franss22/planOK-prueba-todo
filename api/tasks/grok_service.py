@@ -21,7 +21,7 @@ class GrokChatService:
             "system": "You are a project assistant that writes short, clear task analyses. Respond only with the final report and use the requested language.",
             "default_prompt": (
                 "Create a {report_format} report in {language} about the current project status. "
-                "Focus on exactly one task and recommend what should be done next. "
+                "Focus on exactly one task and recommend what should be completed next. "
                 "Totals: total={total}, completed={completed}, pending={pending}."
             ),
             "user_prompt": (

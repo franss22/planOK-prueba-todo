@@ -16,16 +16,29 @@ dependencies = [
 ]
 
 [project.scripts]
-api = "api:main"
+dj-manage = "config.cli:manage"
+dj-migrate = "config.cli:migrate"
+dj-makemigrations = "config.cli:makemigrations"
+dj-runserver = "config.cli:runserver"
+dj-seed = "config.cli:seed_tasks"
 
-[build-system]
-requires = ["uv_build>=0.12.1,<0.13.0"]
-build-backend = "uv_build"
+
+
 
 [dependency-groups]
 dev = [
     "ruff>=0.16.1",
 ]
+
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["config", "tasks"]
 
 
 
@@ -75,6 +88,7 @@ convention = "pep257"
 # Allow missing docstrings in test files
 "test/*.py" = ["D"]
 "**/test_*.py" = ["D"]
+"**/migrations/*.py" = ["D", "RUF012"]
 
 [tool.ruff.lint.mccabe]
 # Equivalent to flake8's complexity checking
@@ -86,9 +100,3 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
 
-[dependency-groups]
-dev = ["ruff>=0.16.1"]
-
-[build-system]
-requires = ["uv_build>=0.11.17,<0.12.0"]
-build-backend = "uv_build"

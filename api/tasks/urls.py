@@ -7,5 +7,5 @@ router.register(r'tasks', TaskViewSet, basename='task')
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("tasks/report/", TaskReportAPIView.as_view(), name="task-report"),
+    path("report/", TaskReportAPIView.as_view(), name="task-report"),
 ]

@@ -50,7 +50,7 @@ export const deleteTask = async (id) => {
 };
 
 export const generateTaskReport = async () => {
-  const response = await api.post("tasks/report/", {
+  const response = await api.post("report/", {
     format: "summary",
     include_completed: true,
     language: "es",

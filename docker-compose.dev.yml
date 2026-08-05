@@ -7,8 +7,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-planok}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    expose:
-      - "5432"
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,8 +26,8 @@ services:
       sh -c "uv run python manage.py migrate && uv run python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./api:/app
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     environment:
       DEBUG: ${DEBUG:-True}
       SECRET_KEY: ${SECRET_KEY:-change-me}
@@ -54,8 +54,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     depends_on:
       - api
 

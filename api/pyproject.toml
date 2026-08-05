@@ -16,12 +16,12 @@ dependencies = [
 ]
 
 [project.scripts]
-dj-manage = "config.cli:manage"
-dj-migrate = "config.cli:migrate"
-dj-makemigrations = "config.cli:makemigrations"
-dj-runserver = "config.cli:runserver"
-dj-seed = "config.cli:seed_tasks"
-dj-test = "config.cli:test"
+manage = "config.cli:manage"
+migrate = "config.cli:migrate"
+makemigrations = "config.cli:makemigrations"
+runserver = "config.cli:runserver"
+seed = "config.cli:seed_tasks"
+test = "config.cli:test"
 
 
 

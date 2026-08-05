@@ -45,6 +45,22 @@ class TaskViewSet(viewsets.ModelViewSet):
 class TaskReportAPIView(APIView):
     """Endpoint for generating AI task reports."""
 
+    _PRIORITY_KEYWORDS = (
+        "urgent",
+        "urgente",
+        "critical",
+        "critico",
+        "crítico",
+        "blocker",
+        "bloqueo",
+        "important",
+        "importante",
+        "priority",
+        "prioridad",
+        "fix",
+        "asap",
+    )
+
     def post(self, request: Request) -> Response:
         """Validate request parameters and return a task report payload."""
         serializer = TaskReportRequestSerializer(data=request.data)
@@ -130,7 +146,7 @@ class TaskReportAPIView(APIView):
 
         prompt = ChatPromptTemplate.from_template(
             """
-            You are a project assistant that writes a short but human-readable task analysis.
+            Eres un asistente de proyectos que escribe un análisis breve y claro de tareas.
 
             Language: {language}
             Format: {report_format}
@@ -138,10 +154,11 @@ class TaskReportAPIView(APIView):
             Priority task: {priority_task}
             Tasks: {tasks_payload}
 
-            Return a short written analysis with:
-            1) a summary of the current state,
-            2) the one task that should be prioritized next,
-            3) practical suggestions or next steps focused on that task.
+            Devuelve solo el análisis, en el idioma indicado, y enfócate en una sola tarea prioritaria.
+            Incluye:
+            1) un resumen corto del estado actual,
+            2) por qué esa tarea debe ir primero,
+            3) el siguiente paso recomendado.
             """
         )
 
@@ -171,23 +188,31 @@ class TaskReportAPIView(APIView):
         priority_task: dict[str, object] | None,
     ) -> str:
         fallback_mode = os.getenv("GROK_FALLBACK_MODE", "analysis").strip().lower()
-        fallback_style = os.getenv("GROK_FALLBACK_STYLE", "written").strip().lower()
-        fallback_note = os.getenv(
-            "GROK_FALLBACK_NOTE",
-            "Name one task to prioritize and explain why it should be next.",
-        ).strip()
         priority_title = str(priority_task.get("title", "task")) if priority_task else "no tasks"
+
+        if language.strip().lower().startswith("es"):
+            if fallback_mode == "summary":
+                return (
+                    f"Resumen de respaldo en español. Totales: total={total}, completadas={completed}, "
+                    f"pendientes={pending}. Tarea prioritaria: {priority_title}."
+                )
+
+            return (
+                f"Análisis escrito en español: hay {completed} tarea(s) completada(s) y {pending} pendiente(s) "
+                f"de un total de {total}. La tarea que deberías priorizar es '{priority_title}'. "
+                f"Siguiente paso: trabaja primero en esa tarea."
+            )
 
         if fallback_mode == "summary":
             return (
-                f"{fallback_style.capitalize()} fallback report in {language}. "
+                f"Fallback summary in {language}. "
                 f"Totals: total={total}, completed={completed}, pending={pending}. "
-                f"Priority task: {priority_title}. Note: {fallback_note}"
+                f"Priority task: {priority_title}."
             )
 
         return (
-            f"{fallback_style.capitalize()} analysis in {language}: {completed} of {total} tasks are completed, "
-            f"leaving {pending} pending. Prioritize '{priority_title}' next. Suggestion: {fallback_note}"
+            f"Fallback analysis in {language}: {completed} of {total} tasks are completed, leaving {pending} pending. "
+            f"Prioritize '{priority_title}' next."
         )
 
     def _pick_priority_task(self, tasks_payload: list[dict[str, object]]) -> dict[str, object] | None:
@@ -201,8 +226,18 @@ class TaskReportAPIView(APIView):
         return sorted(
             candidate_tasks,
             key=lambda task: (
+                -self._task_priority_score(task),
                 bool(task.get("done", False)),
                 str(task.get("created_at", "")),
                 str(task.get("title", "")),
             ),
         )[0]
+
+    def _task_priority_score(self, task: dict[str, object]) -> int:
+        """Score a task by urgency signals in its title and content."""
+        haystack = f"{task.get('title', '')} {task.get('content', '')}".lower()
+        score = 0
+        for keyword in self._PRIORITY_KEYWORDS:
+            if keyword in haystack:
+                score += 1
+        return score

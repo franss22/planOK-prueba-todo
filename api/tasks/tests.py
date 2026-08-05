@@ -186,7 +186,8 @@ class TaskReportApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("report", response.data)
-        self.assertIn("Report (summary, es)", response.data["report"])
+        self.assertIn("Análisis escrito en español", response.data["report"])
+        self.assertIn("Prioriza", response.data["report"])
         self.assertEqual(response.data["stats"]["total"], 2)
         self.assertEqual(response.data["stats"]["completed"], 1)
         self.assertEqual(response.data["stats"]["pending"], 1)
@@ -204,7 +205,7 @@ class TaskReportApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("Urgent fix", response.data["report"])
-        self.assertIn("Prioritize", response.data["report"])
+        self.assertIn("priorizar", response.data["report"].lower())
 
     @patch("tasks.views.TaskReportAPIView._build_report", return_value="mocked report")
     @patch.dict("os.environ", {"GROK_API_KEY": "test-key", "GROK_MODEL": "grok-test"}, clear=False)

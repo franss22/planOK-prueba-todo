@@ -44,7 +44,7 @@ services:
       - "traefik.http.routers.planok-api.rule=Host(`planok-test.emidev.cl`) && PathPrefix(`/api/v1`)"
       - "traefik.http.routers.planok-api.entrypoints=https"
       - "traefik.http.routers.planok-api.tls=true"
-
+      - "traefik.http.routers.planok-api.priority=100"
       # backend service
       - "traefik.http.services.planok-api.loadbalancer.server.port=8000"
     depends_on:
@@ -65,6 +65,7 @@ services:
       - "traefik.http.routers.planok-frontend.rule=Host(`planok-test.emidev.cl`)"
       - "traefik.http.routers.planok-frontend.entrypoints=https"
       - "traefik.http.routers.planok-frontend.tls=true"
+      - "traefik.http.routers.planok-frontend.priority=1"
 
       - "traefik.http.services.planok-frontend.loadbalancer.server.port=3000"
     depends_on:

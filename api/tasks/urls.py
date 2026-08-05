@@ -1,7 +1,11 @@
 from rest_framework.routers import DefaultRouter
-from .views import TaskViewSet
+from django.urls import path, include
+from .views import TaskViewSet, TaskReportAPIView
 
 router = DefaultRouter()
 router.register(r'tasks', TaskViewSet, basename='task')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path("", include(router.urls)),
+    path("report/", TaskReportAPIView.as_view(), name="task-report"),
+]

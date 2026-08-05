@@ -24,6 +24,23 @@ class GrokChatService:
         self.base_url = base_url or os.getenv("GROK_API_URL", "https://api.x.ai/v1/chat/completions")
         self.timeout = timeout or int(os.getenv("GROK_API_TIMEOUT", "30"))
 
+    def _pick_priority_task(self, tasks_payload: list[dict[str, Any]]) -> dict[str, Any] | None:
+        """Pick the most important task from the payload."""
+        if not tasks_payload:
+            return None
+
+        pending_tasks = [task for task in tasks_payload if not task.get("done", False)]
+        candidate_tasks = pending_tasks or tasks_payload
+
+        return sorted(
+            candidate_tasks,
+            key=lambda task: (
+                task.get("done", False),
+                task.get("created_at", ""),
+                task.get("title", ""),
+            ),
+        )[0]
+
     def generate_report(
         self,
         *,
@@ -42,10 +59,12 @@ class GrokChatService:
             total=total,
             completed=completed,
             pending=pending,
+            priority_task=self._pick_priority_task(tasks_payload),
         )
 
         if not self.api_key:
             return self._build_fallback_report(
+                tasks_payload=tasks_payload,
                 report_format=report_format,
                 language=language,
                 total=total,
@@ -95,6 +114,7 @@ class GrokChatService:
             logger.exception("Grok report generation failed: %s", exc)
 
         return self._build_fallback_report(
+            tasks_payload=tasks_payload,
             report_format=report_format,
             language=language,
             total=total,
@@ -110,23 +130,49 @@ class GrokChatService:
         total: int,
         completed: int,
         pending: int,
+        priority_task: dict[str, Any] | None,
     ) -> str:
+        priority_text = (
+            "No task data is available yet."
+            if priority_task is None
+            else (f"The single top priority task is: {priority_task.get('title', 'task')}")
+        )
         return (
             f"Create a {report_format} report in {language} about the current project status. "
-            f"Highlight the most important pending work and recommend next actions. "
+            f"Focus on exactly one task and recommend what should be done next. "
+            f"{priority_text} "
             f"Totals: total={total}, completed={completed}, pending={pending}."
         )
 
     def _build_fallback_report(
         self,
         *,
+        tasks_payload: list[dict[str, Any]],
         report_format: str,
         language: str,
         total: int,
         completed: int,
         pending: int,
     ) -> str:
+        fallback_mode = os.getenv("GROK_FALLBACK_MODE", "analysis").strip().lower()
+        fallback_style = os.getenv("GROK_FALLBACK_STYLE", "written").strip().lower()
+        fallback_note = os.getenv(
+            "GROK_FALLBACK_NOTE",
+            "Name one task to prioritize and explain why it should be next.",
+        ).strip()
+
+        priority_task = self._pick_priority_task(tasks_payload)
+        priority_title = priority_task.get("title", "task") if priority_task else "no tasks"
+
+        if fallback_mode == "summary":
+            return (
+                f"{fallback_style.capitalize()} fallback report in {language}. "
+                f"Totals: total={total}, completed={completed}, pending={pending}. "
+                f"Priority task: {priority_title}. Note: {fallback_note}"
+            )
+
         return (
-            f"Report ({report_format}, {language}): total={total}, completed={completed}, pending={pending}. "
-            "The API is unavailable, so this summary is generated locally."
+            f"{fallback_style.capitalize()} analysis in {language}: the current list has {completed} completed "
+            f"task(s) and {pending} pending task(s) out of {total}. Prioritize '{priority_title}' next. "
+            f"Suggestion: {fallback_note}"
         )

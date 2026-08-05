@@ -183,7 +183,7 @@ function App() {
       >
         <h1 style={{ margin: 0 }}>Gestor de Tareas</h1>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button
+          {/* <button
             onClick={() => setIsAiModalOpen(true)}
             style={{
               padding: "10px 15px",
@@ -196,7 +196,7 @@ function App() {
             }}
           >
             ✨ Generar con IA
-          </button>
+          </button> */}
           <button
             onClick={handleOpenCreateModal}
             style={{

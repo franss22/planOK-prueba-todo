@@ -47,3 +47,8 @@ def runserver() -> None:
 def seed_tasks() -> None:
     """Run custom seed_tasks command."""
     _run("seed_tasks")
+
+
+def test() -> None:
+    """Run Django tests."""
+    _run("test")

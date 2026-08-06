@@ -1,6 +1,6 @@
 import React from "react";
 
-function TaskFormModal({ isOpen, selectedTask, title, description, onTitleChange, onDescriptionChange, onCancel, onSubmit }) {
+function TaskFormModal({ isOpen, selectedTask, title, content, onTitleChange, onContentChange, onCancel, onSubmit }) {
   if (!isOpen) return null;
 
   return (
@@ -15,7 +15,7 @@ function TaskFormModal({ isOpen, selectedTask, title, description, onTitleChange
 
           <div>
             <label style={{ display: "block", marginBottom: "5px" }}>Descripción:</label>
-            <textarea value={description} onChange={onDescriptionChange} style={{ width: "100%", padding: "8px", fontSize: "16px", minHeight: "80px", boxSizing: "border-box" }} />
+            <textarea value={content} onChange={onContentChange} style={{ width: "100%", padding: "8px", fontSize: "16px", minHeight: "80px", boxSizing: "border-box" }} />
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "10px" }}>

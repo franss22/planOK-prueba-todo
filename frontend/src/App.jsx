@@ -68,7 +68,7 @@ function App() {
 
   // Campos del formulario
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [content, setContent] = useState("");
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -116,14 +116,14 @@ function App() {
   const handleOpenCreateModal = () => {
     setSelectedTask(null);
     setTitle("");
-    setDescription("");
+    setContent("");
     setIsFormModalOpen(true);
   };
 
   const handleOpenEditModal = (task) => {
     setSelectedTask(task);
     setTitle(task.title);
-    setDescription(task.content || "");
+    setContent(task.content || "");
     setIsFormModalOpen(true);
   };
 
@@ -141,7 +141,7 @@ function App() {
       if (selectedTask) {
         const updatedTask = await updateTask(selectedTask.id, {
           title,
-          content: description,
+          content: content,
           completed: selectedTask.completed,
         });
         setTasks(
@@ -150,7 +150,7 @@ function App() {
               ? {
                   ...t,
                   title: updatedTask.title,
-                  description: updatedTask.content,
+                  content: updatedTask.content,
                   completed: updatedTask.completed,
                 }
               : t
@@ -159,7 +159,7 @@ function App() {
       } else {
         const newTask = await createTask({
           title,
-          content: description,
+          content: content,
           completed: false,
         });
         setTasks([newTask, ...tasks]);
@@ -508,8 +508,8 @@ function App() {
                   Descripción:
                 </label>
                 <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
                   style={{
                     width: "100%",
                     padding: "8px",

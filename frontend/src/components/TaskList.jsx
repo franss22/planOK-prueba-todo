@@ -51,9 +51,9 @@ function TaskList({ tasks, filter, onOpenDetail, onOpenEdit, onAdvanceStatus, on
                   <h3 onClick={() => onOpenDetail(task)} style={{ margin: "0 0 5px 0", cursor: "pointer", textDecoration: "none", color: isCompleted ? "#28a745" : "#007bff" }}>
                     {task.title}
                   </h3>
-                  {task.description && (
+                  {task.content && (
                     <p style={{ margin: 0, color: "#6c757d", fontSize: "14px" }}>
-                      {task.description.length > 60 ? `${task.description.substring(0, 60)}...` : task.description}
+                      {task.content.length > 60 ? `${task.content.substring(0, 60)}...` : task.content}
                     </p>
                   )}
                 </div>

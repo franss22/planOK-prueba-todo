@@ -15,7 +15,7 @@ export const fetchTasks = async () => {
   return backendTasks.map((task) => ({
     id: task.id,
     title: task.title,
-    description: task.content || task.description || "",
+    description: task.content || task.content || "",
     completed: Boolean(task.completed),
     created_at: task.created_at,
   }));
@@ -27,7 +27,7 @@ export const createTask = async (payload) => {
   return {
     id: task.id,
     title: task.title,
-    description: task.content || task.description || "",
+    description: task.content || task.content || "",
     completed: Boolean(task.completed),
     created_at: task.created_at,
   };
@@ -39,7 +39,7 @@ export const updateTask = async (id, payload) => {
   return {
     id: task.id,
     title: task.title,
-    description: task.content || task.description || "",
+    description: task.content || task.content || "",
     completed: Boolean(task.completed),
     created_at: task.created_at,
   };

@@ -123,7 +123,7 @@ function App() {
   const handleOpenEditModal = (task) => {
     setSelectedTask(task);
     setTitle(task.title);
-    setDescription(task.description || "");
+    setDescription(task.content || "");
     setIsFormModalOpen(true);
   };
 
@@ -150,7 +150,7 @@ function App() {
               ? {
                   ...t,
                   title: updatedTask.title,
-                  description: updatedTask.description,
+                  description: updatedTask.content,
                   completed: updatedTask.completed,
                 }
               : t
@@ -377,13 +377,13 @@ function App() {
                   >
                     {task.title}
                   </h3>
-                  {task.description && (
+                  {task.content && (
                     <p
                       style={{ margin: 0, color: "#6c757d", fontSize: "14px" }}
                     >
-                      {task.description.length > 60
-                        ? `${task.description.substring(0, 60)}...`
-                        : task.description}
+                      {task.content.length > 60
+                        ? `${task.content.substring(0, 60)}...`
+                        : task.content}
                     </p>
                   )}
                 </div>
@@ -569,7 +569,7 @@ function App() {
             </p>
             <p>
               <strong>Descripción:</strong>{" "}
-              {selectedTask.description || "Sin descripción"}
+              {selectedTask.content || "Sin descripción"}
             </p>
 
             <div style={{ margin: "15px 0" }}>

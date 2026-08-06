@@ -13,7 +13,7 @@ function TaskDetailModal({ isOpen, task, onClose, getTaskVisualStatus }) {
 
         <p><strong>ID:</strong> {task.id}</p>
         <p><strong>Título:</strong> {task.title}</p>
-        <p><strong>Descripción:</strong> {task.description || "Sin descripción"}</p>
+        <p><strong>Descripción:</strong> {task.content || "Sin descripción"}</p>
 
         <div style={{ margin: "15px 0" }}>
           <p style={{ margin: "0 0 5px 0" }}>

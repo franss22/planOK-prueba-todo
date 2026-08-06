@@ -10,7 +10,7 @@ from django.core.management import execute_from_command_line
 
 def _run(command: str | None = None) -> None:
     """Execute a Django management command with passthrough arguments."""
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 
     argv = ["manage"]
     if command is not None:

@@ -16,13 +16,13 @@ describe("Frontend Integration Tests - App Component", () => {
       {
         id: 1,
         title: "Tarea Pendiente 1",
-        description: "Desc 1",
+        content: "Desc 1",
         completed: false,
       },
       {
         id: 2,
         title: "Tarea Completada 1",
-        description: "Desc 2",
+        content: "Desc 2",
         completed: true,
       },
     ];
@@ -52,13 +52,13 @@ describe("Frontend Integration Tests - App Component", () => {
       {
         id: 1,
         title: "Tarea Alfa Pendiente",
-        description: "Desc 1",
+        content: "Desc 1",
         completed: false,
       },
       {
         id: 2,
         title: "Tarea Beta Completada",
-        description: "Desc 2",
+        content: "Desc 2",
         completed: true,
       },
     ];
@@ -108,7 +108,7 @@ describe("Frontend Integration Tests - App Component", () => {
       {
         id: 10,
         title: "Subtarea IA Generada",
-        description: "Creada por agente",
+        content: "Creada por agente",
         completed: false,
       },
     ];
